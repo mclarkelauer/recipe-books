@@ -27,27 +27,35 @@ header{position:sticky; top:0; z-index:10; background:var(--bg);
   padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 10px; border-bottom:1px solid var(--border);}
 h1{margin:0; font-size:26px; letter-spacing:-.5px;}
 .sub{color:var(--muted); font-size:13px; margin:2px 0 10px;}
+.tabs{display:flex; background:var(--surface); border:1px solid var(--border);
+  border-radius:12px; padding:3px; margin-bottom:10px;}
+.tab{flex:1; border:none; background:none; color:var(--muted); font-size:15px; font-weight:600;
+  padding:8px; border-radius:9px; cursor:pointer;}
+.tab.active{background:var(--accent); color:#141824;}
 .search{width:100%; padding:11px 14px; font-size:16px; border-radius:12px;
   border:1px solid var(--border); background:var(--surface); color:var(--text); outline:none;}
 .search:focus{border-color:var(--accent);}
-.chips{display:flex; gap:8px; overflow-x:auto; padding:10px 0 4px; scrollbar-width:none;}
+.chips{display:flex; gap:8px; overflow-x:auto; padding:10px 0 4px; scrollbar-width:none; flex-wrap:wrap;}
 .chips::-webkit-scrollbar{display:none;}
 .chip{flex:0 0 auto; padding:7px 14px; border-radius:999px; font-size:14px;
   border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer;}
 .chip.active{background:var(--accent); border-color:var(--accent); color:#141824; font-weight:600;}
 main{padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 30px); max-width:720px; margin:0 auto;}
+#finder-panel{padding:14px 18px 0; max-width:720px; margin:0 auto;}
 .card{display:block; width:100%; text-align:left; background:var(--surface);
   border:1px solid var(--border); border-radius:14px; padding:15px 16px; margin-bottom:12px; cursor:pointer;}
 .card h2{margin:0 0 4px; font-size:18px;}
 .card p{margin:0; color:var(--muted); font-size:14px;}
 .meta{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; font-size:13px; color:var(--muted);}
 .tag{background:var(--accent-soft); color:var(--accent); border-radius:8px; padding:2px 9px; font-size:12.5px; font-weight:600;}
+.match{font-size:12.5px; font-weight:600; color:var(--accent);}
 .empty{text-align:center; color:var(--muted); padding:60px 20px;}
 .empty .big{font-size:44px; margin-bottom:12px;}
 .back{display:inline-block; margin:2px 0 12px; color:var(--accent); font-size:15px; cursor:pointer; background:none; border:none; padding:0;}
 .detail h1{font-size:28px; margin:0 0 4px;}
 .detail .desc{color:var(--muted); margin:0 0 12px;}
 h3{font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin:22px 0 8px;}
+h3:first-child{margin-top:6px;}
 ul.ing{list-style:none; margin:0; padding:0;}
 ul.ing li{padding:9px 0; border-bottom:1px solid var(--border); display:flex; gap:10px;}
 ul.ing li:last-child{border-bottom:none;}
@@ -65,19 +73,43 @@ ol.steps li::before{content:counter(step); position:absolute; left:0; top:10px;
 .notes{background:var(--accent-soft); border-radius:12px; padding:12px 14px; font-size:14.5px; margin-top:6px;}
 .src{margin-top:18px; font-size:13px; color:var(--muted);}
 .error{text-align:center; color:var(--muted); padding:60px 20px;}
+.have-tags{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 0;}
+.have-tag{display:inline-flex; align-items:center; gap:6px; background:var(--accent-soft);
+  color:var(--accent); border-radius:999px; padding:6px 8px 6px 12px; font-size:14px; font-weight:600;}
+.have-tag button{border:none; background:none; color:var(--accent); font-size:16px; cursor:pointer; padding:0 2px;}
+.hint{font-size:13px; color:var(--muted); margin:6px 0 0;}
 </style>
 </head>
 <body>
-<header>
+<header id="hdr">
   <h1>🍸 Cocktail Book</h1>
   <div class="sub" id="count"></div>
-  <input class="search" id="search" type="search" placeholder="Search drinks…" autocomplete="off">
-  <div class="chips" id="chips"></div>
+  <div class="tabs">
+    <button class="tab active" id="tab-browse">Browse</button>
+    <button class="tab" id="tab-finder">✨ Finder</button>
+  </div>
+  <div id="browse-controls">
+    <input class="search" id="search" type="search" placeholder="Search drinks…" autocomplete="off">
+    <div class="chips" id="chips"></div>
+  </div>
 </header>
+<section id="finder-panel" hidden>
+  <h3>What are you in the mood for?</h3>
+  <div class="chips" id="mood-chips"></div>
+  <h3>What do you have to work with?</h3>
+  <div class="chips" id="pantry-chips"></div>
+  <input class="search" id="have-input" type="text" placeholder="Type ingredients, separated by commas…" autocomplete="off" enterkeyhint="done">
+  <p class="hint">Tap a staple or type your own, then hit return.</p>
+  <div class="have-tags" id="have-tags"></div>
+</section>
 <main id="app"></main>
 <script>
 const JSON_URL = "recipes.json";
+const PANTRY = ["Whiskey","Gin","Rum","Tequila","Vodka","Lime","Lemon","Mint","Campari","Vermouth","Bitters","Soda"];
+const SPIRIT_ALIASES = { whiskey:["whiskey","bourbon","rye"], tequila:["tequila","mezcal"] };
 let recipes = [], query = "", category = "All";
+let view = "browse";
+let selMoods = new Set(), haveSet = [];
 
 async function load(){
   try{
@@ -90,22 +122,39 @@ async function load(){
       '<div class="error">Couldn’t load recipes.<br>Check your connection and reopen.</div>';
     return;
   }
-  renderChips();
+  renderChips(); renderMoodChips(); renderPantry();
   route();
   window.addEventListener("hashchange", route);
   document.getElementById("search").addEventListener("input", e=>{
     query = e.target.value.toLowerCase(); renderList();
   });
+  document.getElementById("tab-browse").onclick = ()=>setView("browse");
+  document.getElementById("tab-finder").onclick = ()=>setView("finder");
+  document.getElementById("have-input").addEventListener("keydown", e=>{
+    if(e.key==="Enter"){ addTyped(); }
+  });
 }
+function setView(v){
+  view = v;
+  document.getElementById("tab-browse").classList.toggle("active", v==="browse");
+  document.getElementById("tab-finder").classList.toggle("active", v==="finder");
+  document.getElementById("browse-controls").style.display = v==="browse" ? "" : "none";
+  document.getElementById("finder-panel").hidden = v!=="finder";
+  if(v==="finder") renderFinder(); else route();
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,
+  c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ---------- browse ---------- */
 function categories(){
   const s = new Set(recipes.map(r=>r.category).filter(Boolean));
   return ["All", ...[...s].sort()];
 }
 function renderChips(){
   document.getElementById("chips").innerHTML = categories().map(c=>
-    `<button class="chip${c===category?" active":""}" data-c="${c.replace(/"/g,"")}">${c}</button>`
+    `<button class="chip${c===category?" active":""}" data-c="${esc(c)}">${esc(c)}</button>`
   ).join("");
-  document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll("#chips .chip").forEach(b=>b.onclick=()=>{
     category = b.dataset.c; renderChips(); renderList();
   });
 }
@@ -117,8 +166,6 @@ function filtered(){
     return okC && (!query || hay.includes(query));
   });
 }
-function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,
-  c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function renderList(){
   const list = filtered();
   document.getElementById("count").textContent =
@@ -134,28 +181,112 @@ function renderList(){
     app.innerHTML = `<div class="empty"><p>No drinks match your search.</p></div>`;
     return;
   }
-  app.innerHTML = list.map(r=>`
-    <button class="card" onclick="location.hash='#/r/${r.id}'">
-      <h2>${esc(r.title)}</h2>
-      ${r.description?`<p>${esc(r.description)}</p>`:""}
-      <div class="meta">
-        ${r.category?`<span class="tag">${esc(r.category)}</span>`:""}
-        ${r.yield?`<span>${esc(r.yield)}</span>`:""}
-        ${r.glass?`<span>${esc(r.glass)}</span>`:""}
-      </div>
-    </button>`).join("");
+  app.innerHTML = list.map(r=>cardHTML(r)).join("");
 }
+function cardHTML(r, matchLine){
+  return `<button class="card" onclick="location.hash='#/r/${r.id}'">
+    <h2>${esc(r.title)}</h2>
+    ${r.description?`<p>${esc(r.description)}</p>`:""}
+    <div class="meta">
+      ${r.category?`<span class="tag">${esc(r.category)}</span>`:""}
+      ${r.yield?`<span>${esc(r.yield)}</span>`:""}
+      ${r.glass?`<span>${esc(r.glass)}</span>`:""}
+      ${matchLine?`<span class="match">${matchLine}</span>`:""}
+    </div></button>`;
+}
+
+/* ---------- finder ---------- */
+function allMoods(){
+  const s = new Set();
+  recipes.forEach(r=>(r.moods||[]).forEach(m=>s.add(m)));
+  return [...s].sort();
+}
+function renderMoodChips(){
+  document.getElementById("mood-chips").innerHTML = allMoods().map(m=>
+    `<button class="chip${selMoods.has(m)?" active":""}" data-m="${esc(m)}">${esc(m)}</button>`
+  ).join("");
+  document.querySelectorAll("#mood-chips .chip").forEach(b=>b.onclick=()=>{
+    const m = b.dataset.m;
+    selMoods.has(m) ? selMoods.delete(m) : selMoods.add(m);
+    renderMoodChips(); renderFinder();
+  });
+}
+function renderPantry(){
+  document.getElementById("pantry-chips").innerHTML = PANTRY.map(p=>
+    `<button class="chip${haveSet.includes(p.toLowerCase())?" active":""}" data-p="${p.toLowerCase()}">${p}</button>`
+  ).join("");
+  document.querySelectorAll("#pantry-chips .chip").forEach(b=>b.onclick=()=>{
+    toggleHave(b.dataset.p);
+  });
+}
+function toggleHave(ing){
+  ing = ing.toLowerCase();
+  haveSet = haveSet.includes(ing) ? haveSet.filter(x=>x!==ing) : [...haveSet, ing];
+  renderPantry(); renderHaveTags(); renderFinder();
+}
+function addTyped(){
+  const inp = document.getElementById("have-input");
+  inp.value.split(",").map(s=>s.trim().toLowerCase()).filter(Boolean).forEach(s=>{
+    if(!haveSet.includes(s)) haveSet.push(s);
+  });
+  inp.value = "";
+  renderPantry(); renderHaveTags(); renderFinder();
+}
+function renderHaveTags(){
+  document.getElementById("have-tags").innerHTML = haveSet.map(h=>
+    `<span class="have-tag">${esc(h)}<button onclick="toggleHave('${esc(h)}')">×</button></span>`
+  ).join("");
+}
+function ingMatch(q, itemText){
+  q = q.toLowerCase().trim();
+  const item = itemText.toLowerCase();
+  if(!q) return false;
+  const variants = SPIRIT_ALIASES[q] || [q];
+  return variants.some(v=>item.includes(v));
+}
+function scoreRecipe(r){
+  const moodHits = (r.moods||[]).filter(m=>selMoods.has(m));
+  const ingHits = haveSet.filter(h=>
+    (r.ingredients||[]).some(i=>ingMatch(h, i.item)));
+  return {moodHits, ingHits, total: moodHits.length*2 + ingHits.length*3};
+}
+function renderFinder(){
+  const app = document.getElementById("app");
+  renderHaveTags();
+  const scored = recipes.map(r=>({r, s:scoreRecipe(r)}))
+    .filter(x=>x.s.total>0)
+    .sort((a,b)=>b.s.total-a.s.total || a.r.title.localeCompare(b.r.title));
+  let html = "";
+  if(!selMoods.size && !haveSet.length){
+    html = `<div class="empty"><div class="big">✨</div>
+      <p>Pick a mood, tap what you have,<br>or type ingredients above.</p></div>`;
+  } else if(!scored.length){
+    html = `<div class="empty"><p>Nothing matches that combo.<br>Try fewer picks.</p></div>`;
+  } else {
+    html = `<p class="hint" style="margin:4px 0 12px">${scored.length} match${scored.length===1?"":"es"}</p>` +
+      scored.map(x=>{
+        const bits = [];
+        if(x.s.moodHits.length) bits.push(x.s.moodHits.join(", "));
+        if(x.s.ingHits.length) bits.push("uses " + x.s.ingHits.join(", "));
+        return cardHTML(x.r, "✓ " + bits.join(" · "));
+      }).join("");
+  }
+  app.innerHTML = html;
+}
+
+/* ---------- detail + routing ---------- */
 function renderDetail(id){
   const r = recipes.find(x=>x.id===id);
   const app = document.getElementById("app");
   if(!r){ location.hash = "#/"; return; }
   app.innerHTML = `<div class="detail">
-    <button class="back" onclick="history.back()">‹ All drinks</button>
+    <button class="back" onclick="history.back()">‹ Back</button>
     <h1>${esc(r.title)}</h1>
     ${r.description?`<p class="desc">${esc(r.description)}</p>`:""}
     <div class="meta" style="margin-bottom:4px">
       ${r.category?`<span class="tag">${esc(r.category)}</span>`:""}
       ${r.yield?`<span>${esc(r.yield)}</span>`:""}
+      ${(r.moods||[]).map(m=>`<span class="tag">${esc(m)}</span>`).join("")}
     </div>
     <div class="spec">
       ${r.glass?`<div><div class="k">Glass</div><div class="v">${esc(r.glass)}</div></div>`:""}
@@ -175,10 +306,20 @@ function renderDetail(id){
 }
 function route(){
   const m = location.hash.match(/^#\/r\/(.+)$/);
-  document.querySelector("header").style.display = m ? "none" : "";
-  if(m) renderDetail(decodeURIComponent(m[1]));
-  else renderList();
+  const hdr = document.getElementById("hdr");
+  const panel = document.getElementById("finder-panel");
+  if(m){
+    hdr.style.display = "none";
+    panel.hidden = true;
+    renderDetail(decodeURIComponent(m[1]));
+    return;
+  }
+  hdr.style.display = "";
+  if(view==="finder"){ panel.hidden = false; renderFinder(); }
+  else { panel.hidden = true; renderList(); }
 }
+document.getElementById("tab-browse").onclick = ()=>setView("browse");
+document.getElementById("tab-finder").onclick = ()=>setView("finder");
 load();
 </script>
 </body>
