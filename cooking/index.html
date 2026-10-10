@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cookbook</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cookbook">
+<meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1a17" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<style>
+:root{
+  --bg:#f7f3ec; --surface:#fffdf8; --text:#26221c; --muted:#8a8175;
+  --border:#e7dfd2; --accent:#b3541e; --accent-soft:#f6e3d3;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1c1a17; --surface:#262219; --text:#f0e9db; --muted:#a39a88;
+         --border:#3a352b; --accent:#e08a4e; --accent-soft:#3a2a1c; }
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+body{margin:0; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+  background:var(--bg); color:var(--text); line-height:1.5;}
+header{position:sticky; top:0; z-index:10; background:var(--bg);
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 10px; border-bottom:1px solid var(--border);}
+h1{margin:0; font-size:26px; letter-spacing:-.5px;}
+.sub{color:var(--muted); font-size:13px; margin:2px 0 10px;}
+.search{width:100%; padding:11px 14px; font-size:16px; border-radius:12px;
+  border:1px solid var(--border); background:var(--surface); color:var(--text); outline:none;}
+.search:focus{border-color:var(--accent);}
+.chips{display:flex; gap:8px; overflow-x:auto; padding:10px 0 4px; scrollbar-width:none;}
+.chips::-webkit-scrollbar{display:none;}
+.chip{flex:0 0 auto; padding:7px 14px; border-radius:999px; font-size:14px;
+  border:1px solid var(--border); background:var(--surface); color:var(--text); cursor:pointer;}
+.chip.active{background:var(--accent); border-color:var(--accent); color:#fff;}
+main{padding:14px 18px calc(env(safe-area-inset-bottom,0px) + 30px); max-width:720px; margin:0 auto;}
+.card{display:block; width:100%; text-align:left; background:var(--surface);
+  border:1px solid var(--border); border-radius:14px; padding:15px 16px; margin-bottom:12px; cursor:pointer;}
+.card h2{margin:0 0 4px; font-size:18px;}
+.card p{margin:0; color:var(--muted); font-size:14px;}
+.meta{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px; font-size:13px; color:var(--muted);}
+.tag{background:var(--accent-soft); color:var(--accent); border-radius:8px; padding:2px 9px; font-size:12.5px; font-weight:600;}
+.empty{text-align:center; color:var(--muted); padding:60px 20px;}
+.empty .big{font-size:44px; margin-bottom:12px;}
+.detail-head{margin-bottom:6px;}
+.back{display:inline-block; margin:2px 0 12px; color:var(--accent); font-size:15px; cursor:pointer; background:none; border:none; padding:0;}
+.detail h1{font-size:28px; margin:0 0 4px;}
+.detail .desc{color:var(--muted); margin:0 0 12px;}
+h3{font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin:22px 0 8px;}
+ul.ing{list-style:none; margin:0; padding:0;}
+ul.ing li{padding:9px 0; border-bottom:1px solid var(--border); display:flex; gap:10px;}
+ul.ing li:last-child{border-bottom:none;}
+.amt{flex:0 0 110px; font-weight:600;}
+ol.steps{margin:0; padding:0; list-style:none; counter-reset:step;}
+ol.steps li{counter-increment:step; padding:10px 0 10px 44px; position:relative; border-bottom:1px solid var(--border);}
+ol.steps li:last-child{border-bottom:none;}
+ol.steps li::before{content:counter(step); position:absolute; left:0; top:10px;
+  width:30px; height:30px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
+  font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center;}
+.notes{background:var(--accent-soft); border-radius:12px; padding:12px 14px; font-size:14.5px; margin-top:6px;}
+.src{margin-top:18px; font-size:13px; color:var(--muted);}
+.error{text-align:center; color:var(--muted); padding:60px 20px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🍳 Cookbook</h1>
+  <div class="sub" id="count"></div>
+  <input class="search" id="search" type="search" placeholder="Search recipes…" autocomplete="off">
+  <div class="chips" id="chips"></div>
+</header>
+<main id="app"></main>
+<script>
+const JSON_URL = "recipes.json";
+let recipes = [], query = "", category = "All";
+
+async function load(){
+  try{
+    const r = await fetch(JSON_URL, {cache:"no-store"});
+    if(!r.ok) throw 0;
+    const j = await r.json();
+    recipes = j.recipes || [];
+  }catch(e){
+    document.getElementById("app").innerHTML =
+      '<div class="error">Couldn’t load recipes.<br>Check your connection and reopen.</div>';
+    return;
+  }
+  renderChips();
+  route();
+  window.addEventListener("hashchange", route);
+  document.getElementById("search").addEventListener("input", e=>{
+    query = e.target.value.toLowerCase(); renderList();
+  });
+}
+function categories(){
+  const s = new Set(recipes.map(r=>r.category).filter(Boolean));
+  return ["All", ...[...s].sort()];
+}
+function renderChips(){
+  document.getElementById("chips").innerHTML = categories().map(c=>
+    `<button class="chip${c===category?" active":""}" data-c="${c.replace(/"/g,"")}">${c}</button>`
+  ).join("");
+  document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{
+    category = b.dataset.c; renderChips(); renderList();
+  });
+}
+function filtered(){
+  return recipes.filter(r=>{
+    const okC = category==="All" || r.category===category;
+    const hay = (r.title+" "+(r.description||"")+" "+
+      (r.ingredients||[]).map(i=>i.item).join(" ")).toLowerCase();
+    return okC && (!query || hay.includes(query));
+  });
+}
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,
+  c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function renderList(){
+  const list = filtered();
+  document.getElementById("count").textContent =
+    recipes.length ? recipes.length + (recipes.length===1?" recipe":" recipes") : "";
+  const app = document.getElementById("app");
+  if(!recipes.length){
+    app.innerHTML = `<div class="empty"><div class="big">🍳</div>
+      <p><strong>No recipes yet.</strong></p>
+      <p>Forward a recipe in chat and it will appear here.</p></div>`;
+    return;
+  }
+  if(!list.length){
+    app.innerHTML = `<div class="empty"><p>No recipes match your search.</p></div>`;
+    return;
+  }
+  app.innerHTML = list.map(r=>`
+    <button class="card" onclick="location.hash='#/r/${r.id}'">
+      <h2>${esc(r.title)}</h2>
+      ${r.description?`<p>${esc(r.description)}</p>`:""}
+      <div class="meta">
+        ${r.category?`<span class="tag">${esc(r.category)}</span>`:""}
+        ${r.servings?`<span>Serves ${esc(r.servings)}</span>`:""}
+        ${r.total_time?`<span>${esc(r.total_time)}</span>`:""}
+      </div>
+    </button>`).join("");
+}
+function renderDetail(id){
+  const r = recipes.find(x=>x.id===id);
+  const app = document.getElementById("app");
+  if(!r){ location.hash = "#/"; return; }
+  app.innerHTML = `<div class="detail">
+    <button class="back" onclick="history.back()">‹ All recipes</button>
+    <div class="detail-head">
+      <h1>${esc(r.title)}</h1>
+      ${r.description?`<p class="desc">${esc(r.description)}</p>`:""}
+      <div class="meta">
+        ${r.category?`<span class="tag">${esc(r.category)}</span>`:""}
+        ${r.servings?`<span>Serves ${esc(r.servings)}</span>`:""}
+        ${r.prep_time?`<span>Prep ${esc(r.prep_time)}</span>`:""}
+        ${r.cook_time?`<span>Cook ${esc(r.cook_time)}</span>`:""}
+      </div>
+    </div>
+    <h3>Ingredients</h3>
+    <ul class="ing">${(r.ingredients||[]).map(i=>
+      `<li><span class="amt">${esc(i.amount||"")}</span><span>${esc(i.item)}</span></li>`).join("")}</ul>
+    <h3>Method</h3>
+    <ol class="steps">${(r.steps||[]).map(s=>`<li>${esc(s)}</li>`).join("")}</ol>
+    ${r.notes?`<h3>Notes</h3><div class="notes">${esc(r.notes)}</div>`:""}
+    ${r.source?`<div class="src">Source: ${esc(r.source)}</div>`:""}
+  </div>`;
+  window.scrollTo(0,0);
+}
+function route(){
+  const m = location.hash.match(/^#\/r\/(.+)$/);
+  document.querySelector("header").style.display = m ? "none" : "";
+  if(m) renderDetail(decodeURIComponent(m[1]));
+  else renderList();
+}
+load();
+</script>
+</body>
+</html>

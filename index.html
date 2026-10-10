@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Recipe Books</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<style>
+:root{ --bg:#f7f3ec; --surface:#fffdf8; --text:#26221c; --muted:#8a8175; --border:#e7dfd2; }
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#1c1a17; --surface:#262219; --text:#f0e9db; --muted:#a39a88; --border:#3a352b; }
+}
+body{margin:0; font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+  background:var(--bg); color:var(--text); display:flex; min-height:100vh;
+  align-items:center; justify-content:center; padding:24px;}
+.wrap{max-width:420px; width:100%; text-align:center;}
+h1{font-size:30px; margin:0 0 6px;}
+p{color:var(--muted); margin:0 0 26px;}
+a.book{display:flex; align-items:center; gap:16px; background:var(--surface);
+  border:1px solid var(--border); border-radius:16px; padding:18px; margin-bottom:14px;
+  text-decoration:none; color:var(--text); text-align:left;}
+a.book .e{font-size:36px;}
+a.book .t{font-size:19px; font-weight:700;}
+a.book .d{font-size:14px; color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📚 Recipe Books</h1>
+  <p>Two collections, kept up to date.</p>
+  <a class="book" href="cooking/">
+    <span class="e">🍳</span>
+    <span><span class="t">Cookbook</span><br><span class="d">Dishes, sides &amp; everything savory</span></span>
+  </a>
+  <a class="book" href="cocktails/">
+    <span class="e">🍸</span>
+    <span><span class="t">Cocktail Book</span><br><span class="d">Drinks, from classics to batch builds</span></span>
+  </a>
+</div>
+</body>
+</html>
